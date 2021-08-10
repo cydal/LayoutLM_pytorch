@@ -9,6 +9,7 @@ import pytesseract
 
 from tqdm import tqdm
 import numpy as np
+import os
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -135,7 +136,7 @@ def model_train(model, epochs, optimizer, train_dataloader, device):
 
 
 
-def model_eval(model, val_dataloader, device):
+def model_eval(model, val_dataloader, pad_token_label_id, label_map, device):
 
     eval_loss = 0.0
     nb_eval_steps = 0
@@ -216,7 +217,7 @@ def get_boxes(coordinates, width, height):
         
     return(actual_boxes, boxes)
 
-def infer_pipeline(images, tokenizer, device, infer_path, args):
+def infer_pipeline(model, images, tokenizer, device, infer_path, save_path, label_map, args):
   all_boxes = []
   for image in images:
 
@@ -226,7 +227,7 @@ def infer_pipeline(images, tokenizer, device, infer_path, args):
     w_scale = 1000/width
     h_scale = 1000/height
 
-    ocr_df = tesseract_imgs(img)
+    ocr_df = tesseract_imgs(img, w_scale, h_scale)
                   
     words = list(ocr_df.text)
     coordinates = ocr_df[['left', 'top', 'width', 'height']]
@@ -234,7 +235,6 @@ def infer_pipeline(images, tokenizer, device, infer_path, args):
 
     actual_boxes, boxes = get_boxes(coordinates, width, height)
 
-    
     input_ids, input_mask, segment_ids, token_boxes, token_actual_boxes = convert_example_to_features(image=img, words=words, 
                                                                                                       boxes=boxes, actual_boxes=actual_boxes, 
                                                                                                       tokenizer=tokenizer, args=args)
@@ -252,7 +252,7 @@ def infer_pipeline(images, tokenizer, device, infer_path, args):
 
     # let's turn them into word level predictions
     word_level_predictions = []
-
+    final_boxes = []
     for id, token_pred, box in zip(input_ids.squeeze().tolist(), token_predictions, token_actual_boxes):
         if (tokenizer.decode([id]).startswith("##")) or (id in [tokenizer.cls_token_id, 
                                                                 tokenizer.sep_token_id, 
@@ -270,21 +270,21 @@ def infer_pipeline(images, tokenizer, device, infer_path, args):
         draw.rectangle(box, outline=label2color[predicted_label])
         draw.text((box[0] + 10, box[1] - 10), text=predicted_label, fill=label2color[predicted_label], font=font)
 
-    img.save(os.path.join(infer_path, image.split("/")[-1], "PNG")
+    img.save(os.path.join(save_path, image.split("/")[-1]), "PNG")
 
 
 
 
-def tesseract_imgs(img):
-    ocr_df = pytesseract.image_to_data(img, output_type='data.frame') \
-    ocr_df = ocr_df.dropna() \
-                  .assign(left_scaled = ocr_df.left*w_scale,
-                          width_scaled = ocr_df.width*w_scale,
-                          top_scaled = ocr_df.top*h_scale,
-                          height_scaled = ocr_df.height*h_scale,
-                          right_scaled = lambda x: x.left_scaled + x.width_scaled,
-                          bottom_scaled = lambda x: x.top_scaled + x.height_scaled)
-    return(ocr_df)
+def tesseract_imgs(img, w_scale, h_scale):
+  ocr_df = pytesseract.image_to_data(img, output_type='data.frame')
+  ocr_df = ocr_df.dropna() \
+                .assign(left_scaled = ocr_df.left*w_scale,
+                        width_scaled = ocr_df.width*w_scale,
+                        top_scaled = ocr_df.top*h_scale,
+                        height_scaled = ocr_df.height*h_scale,
+                        right_scaled = lambda x: x.left_scaled + x.width_scaled,
+                        bottom_scaled = lambda x: x.top_scaled + x.height_scaled)
+  return(ocr_df)
 
 
 def convert_example_to_features(image, words, boxes, actual_boxes, tokenizer, args, cls_token_box=[0, 0, 0, 0],

@@ -35,13 +35,6 @@ print(labels)
 
 args = {'local_rank': -1,
         'overwrite_cache': True,
-        'data_dir': '/content/data',
-        'model_name_or_path':'microsoft/layoutlm-base-uncased',
-        'max_seq_length': 512,
-        'model_type': 'layoutlm',}
-
-args = {'local_rank': -1,
-        'overwrite_cache': True,
         'data_dir': params.DATA_DIR,
         'model_name_or_path':params.MODEL_NAME_OR_PATH,
         'max_seq_length': params.MAX_SEQ_LENGTH,
@@ -71,6 +64,7 @@ device = get_device()
 model = get_pretrained_model(num_labels)
 model.to(device)
 
+print(model)
 
 ### Fine-tune
 
@@ -78,4 +72,6 @@ optimizer = AdamW(model.parameters(), lr=params.LR)
 
 
 model_train(model, params.EPOCHS, optimizer, train_dataloader, device)
-model_eval(model, val_dataloader, device)
+model_eval(model, val_dataloader, pad_token_label_id, label_map, device)
+
+torch.save(model, params.SAVE_MODEL_PATH)
