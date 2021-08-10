@@ -1,5 +1,6 @@
 from torch.nn import CrossEntropyLoss
 from utils import *
+from transformers import AdamW
 
 
 
@@ -38,10 +39,17 @@ input_ids = batch[0][0]
 print(tokenizer.decode(input_ids))
 
 
-from transformers import LayoutLMForTokenClassification
-import torch
 
 device = get_device()
 
-model = LayoutLMForTokenClassification.from_pretrained("microsoft/layoutlm-base-uncased", num_labels=num_labels)
+model = get_pretrained_model(num_labels)
 model.to(device)
+
+
+### Fine-tune
+optimizer = AdamW(model.parameters(), lr=5e-5)
+epochs = 5
+
+
+model_train(model, epochs, optimizer, train_dataloader, device)
+model_eval(model, val_dataloader, device)
