@@ -1,4 +1,4 @@
-# LayoutML_pytorch
+# LayoutLM_pytorch
 
 
 The layoutLM by Microsoft is a text and layout image understanding solution. 
